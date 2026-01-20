@@ -127,8 +127,10 @@ A partir de aqui, TODO lo que hagas debe quedar documentado en DESPLIEGUE.md con
   Que demuestra: aparecen las directivas solicitadas en nginx.conf.
   Comando antes de capturar:
 ```bash
-docker compose exec web sh -c "grep -nE 'worker_processes|worker_connections|access_log|error_log|gzip|include|keepalive_timeout' /etc/nginx/nginx.conf"
+docker exec pagina-pruebas sh -c "grep -nE 'worker_processes|worker_connections|access_log|error_log|gzip|include|keepalive_timeout' /etc/nginx/nginx.conf"
 ```
+
+![alt text](evidencias/a-01-grep-nginxconf.png)
 
 - evidencias/a-02-nginx-t.png
   Que demuestra: validacion correcta tras el cambio.
