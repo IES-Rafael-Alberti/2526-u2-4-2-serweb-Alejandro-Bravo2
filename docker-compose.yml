@@ -1,0 +1,24 @@
+services:
+  web:
+    image: nginx
+    container_name: pagina-pruebas
+    ports:
+      - "8081:80"
+      - "443:443"
+    volumes:
+      - ./tarea_despliegueWebEstatica:/usr/share/nginx/html:ro
+      - ./nginx-selfsigned.crt:/etc/ssl/certs/nginx-selfsigned.crt:ro
+      - ./nginx-selfsigned.key:/etc/ssl/private/nginx-selfsigned.key:ro
+      - ./default.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./.htpasswd:/etc/nginx/.htpasswd:ro
+    restart: unless-stopped
+
+  sftp:
+    image: atmoz/sftp
+    container_name: server_ftp
+    ports:
+      - "2222:22"
+    volumes:
+      - ./tarea_despliegueWebEstatica:/home/soyElAdmin/upload
+    command: soyElAdmin:masSeguraImposible1234:1001
+    restart: unless-stopped

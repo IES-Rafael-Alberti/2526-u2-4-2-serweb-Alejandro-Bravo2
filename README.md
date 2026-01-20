@@ -1,3 +1,4 @@
+[![Review Assignment Due Date](https://classroom.github.com/assets/deadline-readme-button-22041afd0340ce965d47ae6ef1cefeee28c7c493a6346c4f15d667ab976d596c.svg)](https://classroom.github.com/a/V0UhzOJZ)
 # P4.1 — Segunda Parte (Evaluacion RA2) — Nginx en Docker
 
 Documento de entrega unico (obligatorio):
@@ -126,8 +127,10 @@ A partir de aqui, TODO lo que hagas debe quedar documentado en DESPLIEGUE.md con
   Que demuestra: aparecen las directivas solicitadas en nginx.conf.
   Comando antes de capturar:
 ```bash
-docker compose exec web sh -c "grep -nE 'worker_processes|worker_connections|access_log|error_log|gzip|include|keepalive_timeout' /etc/nginx/nginx.conf"
+docker exec pagina-pruebas sh -c "grep -nE 'worker_processes|worker_connections|access_log|error_log|gzip|include|keepalive_timeout' /etc/nginx/nginx.conf"
 ```
+
+![alt text](evidencias/a-01-grep-nginxconf.png)
 
 - evidencias/a-02-nginx-t.png
   Que demuestra: validacion correcta tras el cambio.
