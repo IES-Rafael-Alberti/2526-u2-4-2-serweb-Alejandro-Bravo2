@@ -1,452 +1,342 @@
-# P4.1 — Segunda Parte (Evaluacion RA2) — Nginx en Docker
+# Práctica: Despliegue de Web Estática con Docker
+**Alejandro Bravo Calderón - 2º DAW**
 
-Documento de entrega unico (obligatorio):
-[DESPLIEGUE.md](./DESPLIEGUE.md)
+## Índice
 
-En DESPLIEGUE.md debes incluir:
-- Parte 1: evidencias de que tu infraestructura inicial funciona (Nginx + SFTP + volumen + webs + HTTPS).
-- Parte 2: respuestas y evidencias de los criterios RA2 (a–j) de este README.
+1. [Descripción del proyecto](#descripción-del-proyecto)
+2. [Estructura del proyecto](#estructura-del-proyecto)
+3. [Docker Compose](#docker-compose)
+4. [Proceso de despliegue](#proceso-de-despliegue)
+   - 4.1. [Transferencia de archivos con FileZilla](#1-transferencia-de-archivos-con-filezilla)
+   - 4.2. [Verificación de las webs](#2-verificación-de-las-webs)
+5. [Conclusión](#conclusión)
+6. [Configuración de volúmenes compartidos](#configuración-de-volúmenes-compartidos)
+7. [Configuración de usuarios SFTP](#configuración-de-usuarios-sftp)
+8. [Gestión de permisos con SFTP](#gestión-de-permisos-con-sftp)
+9. [Implementación de HTTPS con certificados SSL](#implementación-de-https-con-certificados-ssl)
+   - 9.1. [Generación de certificados autofirmados](#generación-de-certificados-autofirmados)
+   - 9.2. [Montaje de certificados en el contenedor](#montaje-de-certificados-en-el-contenedor)
+   - 9.3. [Configuración del puerto HTTPS](#configuración-del-puerto-https)
+   - 9.4. [Configuración personalizada de Nginx para SSL](#configuración-personalizada-de-nginx-para-ssl)
+10. [Lista de comprobación de la tarea](#lista-de-comprobación-de-la-tarea)
+    - 10.1. [Fase 1: Instalación y configuración](#fase-1-instalación-y-configuración)
+    - 10.2. [Fase 2: Transferencia de archivos por SFTP](#fase-2-transferencia-de-archivos-por-sftp)
+    - 10.3. [Fase 3: Infraestructura Docker](#fase-3-infraestructura-docker)
+    - 10.4. [Fase 4: Seguridad HTTPS](#fase-4-seguridad-https)
+
+## Descripción del proyecto
+
+Esta práctica consiste en montar un servidor web Nginx con Docker Compose para servir dos páginas web estáticas. Además, he configurado un servidor SFTP para poder subir los archivos mediante FileZilla, simulando un entorno de despliegue real.
+
+## Estructura del proyecto
+
+El proyecto tiene dos servicios en Docker:
+- **Nginx**: Servidor web que sirve las páginas en el puerto 8080
+- **SFTP**: Servidor para transferir archivos por FileZilla en el puerto 2222
+
+Los dos contenedores comparten una carpeta (`tarea_despliegueWebEstatica`) para que cuando suba archivos por SFTP, aparezcan automáticamente en la web.
+
+## Docker compose
+Explicación línea a línea:
+- **Services**: En services declaramos todos los contenedores que vamos a ejecutar.
+- **web/sftp**: Son los nombres que le he dado a los servicios de nginx y al contenedor sftp, estos nombres son nombres genericos que no tendrán importancia para docker pero es bueno distinguirlos y ponerle nombres relacionados con el servicio ya que es una buena práctica.
+- **image**: Es el nombre de la imagen subida a docker hub que nos tendremos que bajar. En mi caso: **nginx** y **atmoz/sftp**.
+- **container_name**: Es el nombre del contenedor que le pondremos a cada servicio, este nombre podemos usar el que queramos y este es el nombre que veremos cuando ejecutemos comandos como ```docker ps``` para ver los contenedores ejecutnadose.
+- **ports**: En esta parte indicaremos la redirección de puertos que queramos hacer con el contenedor para mapear el puerto del contenedor con un puerto de la máquina para que podamos acceder desde otro equipo al contenedor pero pasando por el pc, si no hacemos el mapeo de puertos no podremos acceder desde otro equipo.
+- **volumes**: Aqui indicamos un mapeo de directorios, esto no sirve para montar bind mounts en el contenedor y que estén sincronizado con un directorio de nuestro ordenador. De esta forma podemos hacer que varios contenedores vean los mismos datos (Este es el caso de la práctica que hemos hecho).
+- **command**: Es una forma que tienen algunas imagenes de importarle parametros a una imagen para que cuando la dokenizemos pues que tenga los parametros, al menos este es el caso de la imagen de **atmoz/sftp** ya que lo vi en la descripción de la imagen de docker hub.
+- **restart**: Es una forma de dictar directivas al contenedor para que actue de cierta forma ante un reinicio imprevisto. Este parámetro lo he acompñado de unless-stop ya que mi objetivo era que se reiniciara tantas veces como sea necesaria a no ser que yo pare al contenedor.
+
+https://github.com/IES-Rafael-Alberti/2526-u2-4-2-serweb-Alejandro-Bravo2/blob/b873466b9f11839743db10988e35fa6f0dae1bce/docker-compose.yml#L1-L23
+
+## Proceso de despliegue
+
+### 1. Transferencia de archivos con FileZilla
+
+Primero me conecté al servidor SFTP usando FileZilla para subir los archivos de las webs:
+
+**Transferencia del primer archivo:**
+![alt text](assets/image-4.png)
+
+**Transferencia del archivo index.html:**
+![alt text](assets/image-5.png)
+
+**Archivos en local después de la transferencia con FileZilla:**
+![alt text](assets/image-6.png)
+
+### 2. Verificación de las webs
+
+Una vez subidos los archivos, comprobé que todo funcionaba correctamente desde el navegador.
+
+**Página principal (CloudAcademy) en http://localhost:8080:**
+![alt text](assets/image-7.png)
+
+**Página del reloj en http://localhost:8080/reloj/:**
+![alt text](assets/image-8.png)
+
+## Conclusión
+
+La práctica ha funcionado bien. Las dos webs se ven correctamente y el sistema de transferencia por SFTP funciona como debería. Cuando subo un archivo por FileZilla, aparece inmediatamente en el navegador sin tener que reiniciar nada.
+
+## Configuración de volúmenes compartidos
+
+Para que los dos contenedores (Nginx y SFTP) pudieran "ver" los mismos archivos, tuve que investigar las rutas internas de cada uno:
+
+- **Nginx**: Por defecto sirve los archivos desde `/usr/share/nginx/html`
+- **SFTP (atmoz/sftp)**: Guarda los archivos que subes en `/home/soyElAdmin/upload`
+
+La clave fue mapear ambas rutas a la misma carpeta de mi ordenador (`./tarea_despliegueWebEstatica`). Así, cuando subo algo por SFTP, se guarda en esa carpeta local, y como Nginx también está leyendo de ahí, lo ve automáticamente. Es como si ambos contenedores estuvieran mirando a la misma carpeta, aunque cada uno use una ruta interna diferente.
+
+En el docker-compose quedó así:
+
+```yaml
+# Servicio web
+volumes:
+  - ./tarea_despliegueWebEstatica:/usr/share/nginx/html:ro
+
+# Servicio SFTP
+volumes:
+  - ./tarea_despliegueWebEstatica:/home/soyElAdmin/upload
+```
+
+## Configuración de usuarios SFTP
+
+Para crear usuarios en el contenedor SFTP, la imagen `atmoz/sftp` usa el parámetro `command`. Después de leer la documentación en Docker Hub, descubrí que el formato es:
+
+```
+usuario:contraseña:UID
+```
+
+En mi caso configuré:
+
+```yaml
+command: soyElAdmin:masSeguraImposible1234:1001
+```
+
+Donde:
+- `soyElAdmin` es el usuario para conectarme por FileZilla
+- `masSeguraImposible1234` es la contraseña
+- `1001` es el UID (identificador de usuario en Linux), necesario para los permisos
+
+## Gestión de permisos con SFTP
+
+Al principio pensé que tendría problemas de permisos al subir archivos, pero como he configurado todo con Docker y volúmenes compartidos, no he tenido ese problema.
+
+La imagen `atmoz/sftp` crea automáticamente la carpeta `/home/soyElAdmin/upload` con los permisos correctos para mi usuario. Como esa carpeta está mapeada directamente a `./tarea_despliegueWebEstatica` en mi máquina, y Nginx lee esa misma carpeta con permisos de solo lectura (`:ro`), todo funciona sin tener que tocar permisos manualmente.
+
+Si hubiera trabajado directamente en una máquina virtual sin Docker, probablemente habría tenido que usar `chmod` y `chown` para ajustar permisos, pero con los volúmenes de Docker esto se simplifica bastante.
 
 ---
 
-## 0) Requisitos y reglas de entrega
+## Implementación de HTTPS con certificados SSL
 
-### 0.1 Requisitos
-- Docker instalado
-- Docker Compose plugin disponible
+### Generación de certificados autofirmados
 
-Comprobacion:
+Para habilitar HTTPS en el servidor, primero tuve que generar certificados SSL autofirmados. Usé OpenSSL con el siguiente comando:
+
 ```bash
-docker --version
-docker compose version
+openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout nginx-selfsigned.key -out nginx-selfsigned.crt
 ```
 
-### 0.2 Estructura recomendada del repo
+**Explicación de cada parámetro:**
 
-```
-.
-├── README.md
-├── DESPLIEGUE.md
-├── docker-compose.yml
-├── default.conf
-├── nginx-selfsigned.crt
-├── nginx-selfsigned.key
-├── webdata/
-└── evidencias/
+- **`openssl req`**: Herramienta para gestionar solicitudes de certificados. En este caso la uso para crear uno nuevo.
+
+- **`-x509`**: Le dice a OpenSSL que cree un certificado autofirmado en lugar de una solicitud de firma (CSR). Básicamente, nosotros mismos firmamos nuestro certificado sin necesidad de una autoridad certificadora.
+
+- **`-nodes`**: Significa "no DES" (no cifrar). Hace que la clave privada no esté protegida con contraseña. Esto es necesario para que Nginx pueda arrancar automáticamente sin pedir contraseña.
+
+- **`-days 365`**: Define la validez del certificado. En este caso será válido durante 365 días (1 año).
+
+- **`-newkey rsa:2048`**: Genera una nueva clave privada usando el algoritmo RSA con 2048 bits de longitud. Este tamaño es el estándar actual para seguridad.
+
+- **`-keyout nginx-selfsigned.key`**: Especifica el nombre del archivo donde se guardará la clave privada generada.
+
+- **`-out nginx-selfsigned.crt`**: Especifica el nombre del archivo donde se guardará el certificado público generado.
+
+Al ejecutar el comando, me pidió información sobre la organización (país, ciudad, nombre de dominio, etc.). Como es para pruebas locales, rellené los campos básicos.
+
+Los archivos `.crt` y `.key` los guardé en la misma carpeta que el `docker-compose.yml`, ya que los voy a montar en el contenedor mediante bind mounts.
+
+### Montaje de certificados en el contenedor
+
+Para que Nginx pueda usar los certificados, los monté en el contenedor mediante bind mounts. Añadí estas líneas en la sección `volumes` del servicio web:
+
+```yaml
+volumes:
+  - ./tarea_despliegueWebEstatica:/usr/share/nginx/html:ro
+  - ./nginx-selfsigned.crt:/etc/ssl/certs/nginx-selfsigned.crt:ro
+  - ./nginx-selfsigned.key:/etc/ssl/private/nginx-selfsigned.key:ro
 ```
 
-### 0.3 Normas para evidencias (obligatorio)
-- Todas las capturas van en evidencias/.
-- Todas las evidencias deben aparecer enlazadas en DESPLIEGUE.md, con:
-  - que demuestra
-  - comando ejecutado (si aplica)
-  - captura (archivo de imagen)
+De esta forma:
+- El certificado (`.crt`) se monta en `/etc/ssl/certs/` dentro del contenedor
+- La clave privada (`.key`) se monta en `/etc/ssl/private/` dentro del contenedor
+- Ambos con permisos de solo lectura (`:ro`) por seguridad
+
+### Configuración del puerto HTTPS
+
+Para permitir el tráfico HTTPS, añadí el mapeo del puerto 443 en el `docker-compose.yml`:
+
+```yaml
+ports:
+  - "8080:80"    # HTTP
+  - "443:443"    # HTTPS
+```
+
+He mapeado el puerto 443 del contenedor al puerto 443 del host (mi máquina). Así el servidor puede recibir conexiones HTTPS en el puerto estándar.
+
+
+
+### Configuración personalizada de Nginx para SSL
+
+Redirección automatica del puerto 80 al 443.
+![alt text](assets/image-9.png)
+
+Fichero default.conf:
+
+Explicación de cada directiva importante del default.conf:
+
+- **server**: Define un bloque de configuración para un servidor virtual. Cada bloque `server` representa una forma diferente de responder a las peticiones (en este caso, uno para HTTP y otro para HTTPS).
+
+- **listen**: Especifica el puerto en el que Nginx escucha las peticiones. `listen 80` es para HTTP normal, y `listen 443 ssl` es para HTTPS cifrado.
+
+- **listen [::]:80**: Similar al anterior, pero para conexiones IPv6. El `[::]` indica que escuche en todas las interfaces IPv6 disponibles.
+
+- **server_name**: Define el nombre de dominio que este bloque server va a manejar. Usé `_` que es un comodín especial en Nginx que significa "responde a cualquier nombre". Así funciona tanto si accedo por IP como por localhost.
+
+- **return 301 https://$host$request_uri**: Con esta linea lo que hacemos es que cuando alguien entre por HTTP se le redirija automaticamente a HTTPS. El 301 es el codigo de "movido permanentemente" y las variables `$host` y `$request_uri` pues son para que se mantenga el nombre y la ruta que habia puesto el usuario. No pongo `:443` porque al ser HTTPS ya se entiende que es el puerto 443 por defecto.
+
+- **ssl_certificate / ssl_certificate_key**: Aqui le indicamos donde estan los archivos del certificado SSL, tanto el publico (.crt) como la clave privada (.key). Sin esto no funciona HTTPS.
+
+- **root**: Es el directorio raiz de donde nginx coge los archivos de la web. En mi caso `/usr/share/nginx/html` que es donde tengo montado el volumen compartido.
+
+- **index**: Le dice a Nginx que archivos tiene que buscar cuando accedes a un directorio sin poner ningun archivo concreto. Yo he puesto `index.html` y `index.htm`.
+
+- **location /**: Este bloque es para definir como se manejan las peticiones que llegan al servidor. El `/` basicamente significa todas las rutas.
+
+- **try_files $uri $uri/ =404**: Esta directiva va dentro del location y lo que hace es que nginx primero intenta buscar el archivo que le pides (`$uri`), si no lo encuentra lo busca como carpeta (`$uri/`), y si tampoco pues devuelve un error 404.
+
+- **access_log / error_log**: Aqui es donde se configuran los archivos de log del servidor, tanto los accesos como los errores. Viene bien para depurar si algo no va.
+
 
 ---
 
-# 1) Parte 1 — Evidencias minimas (deben estar en DESPLIEGUE.md)
+## Lista de comprobación de la tarea
 
-Estas evidencias confirman que la primera parte (infraestructura base) esta operativa.
+### Fase 1: Instalación y configuración
 
-## Fase 1: Instalacion y configuracion
+| Requisito | Evidencia requerida |
+|-----------|---------------------|
+| Servicio Nginx activo: el servidor web esta instalado y corriendo | Captura del comando docker compose ps mostrando el servicio activo |
+| Configuracion cargada: se ha cargado el archivo de configuracion del sitio | Captura listando el directorio de configuracion dentro del contenedor donde se vea el .conf |
+| Resolucion de nombres: he configurado /etc/hosts para usar un nombre en vez de la IP | Captura del navegador donde la barra de direcciones muestre http://nombre_web y se vea la pagina |
+| Contenido Web: se ve la web de Cloud Academy en vez de la pagina por defecto de Nginx | La misma captura de antes sirve, pero tiene que verse el diseño de la web importada |
 
-1) Servicio Nginx activo
-- Evidencia requerida: captura de `docker compose ps` (desde fuera) o `service nginx status` (desde dentro del contenedor) mostrando el servicio activo. Nota: `systemctl` no suele funcionar dentro de Docker.
+#### Captura de servicio nginx activo:
+![alt text](assets/image-10.png)
 
-2) Configuracion cargada
-- Evidencia requerida: captura listando el directorio de configuracion dentro del contenedor (ej: `ls -l /etc/nginx/conf.d/` o `sites-enabled` segun la imagen usada) donde se vea tu archivo `.conf`.
+#### Captura del directorio de configuración dentro del contenedor:
 
-3) Resolucion de nombres
-- Evidencia requerida: captura del navegador con la barra de direcciones mostrando `http://nombre_web` (no la IP) y la pagina cargada.
+![alt text](assets/image-11.png)
 
-4) Contenido Web
-- Evidencia requerida: la misma captura anterior, pero debe verse claramente el diseno de la web importada de Cloud Academy.
 
-## Fase 2: Transferencia SFTP (Filezilla)
+#### Captura de la configuración del /etc/hosts y mostrando su funcionamiento:
 
-5) Conexion SFTP exitosa
-- Evidencia requerida: captura de Filezilla mostrando en el panel de registro "Status: Connected to..." y en el panel derecho el listado de carpetas remoto. Nota: en Docker la ruta suele ser `/home/usuario/upload`, no `/var/www`.
+Archivo `/etc/hosts` configurado para que la ip privada local sea usada por el dominio pruebas:
+![alt text](assets/image-12.png)
 
-6) Permisos de escritura
-- Evidencia requerida: captura de Filezilla mostrando la transferencia completada o los archivos ya presentes en el servidor remoto.
+Captura de evidencia en funcionamiento:
+![alt text](assets/image-13.png)
 
-## Fase 3: Infraestructura Docker
+#### Captura de la web en funcionamiento:
+![alt text](assets/image-14.png)
 
-7) Contenedores activos
-- Evidencia requerida: captura de `docker compose ps` donde se vean los dos servicios con estado Up y los puertos `0.0.0.0:8080->80/tcp` y `0.0.0.0:2222->22/tcp`.
+![alt text](assets/image-15.png)
 
-8) Persistencia (Volumen compartido)
-- Evidencia requerida: evidencia cruzada (Filezilla + navegador) demostrando que lo subido al SFTP se ve en la web (por ejemplo `localhost:8080`).
+### Fase 2: Transferencia de archivos por SFTP
 
-9) Despliegue multi-sitio
-- Evidencia requerida: captura del navegador en `http://localhost:8080/reloj` mostrando el reloj funcionando.
+| Requisito | Evidencia requerida |
+|-----------|---------------------|
+| Configuración del servidor SFTP en Docker | Captura del archivo docker-compose.yml mostrando la configuración del servicio SFTP |
 
-## Fase 4: Seguridad HTTPS
+| Conexión exitosa mediante cliente SFTP (FileZilla) | Captura de FileZilla mostrando la conexión establecida con el servidor SFTP |
+| Transferencia de archivos desde local al servidor | Capturas mostrando: (1) archivos en local antes de la transferencia, (2) proceso de transferencia en FileZilla, (3) archivos en el servidor después de la transferencia |
 
-10) Cifrado SSL
-- Evidencia requerida: captura del navegador accediendo por `https://...` mostrando el candado (o alerta de certificado autofirmado) y el puerto configurado (ej. `8443`).
 
-11) Redireccion forzada
-- Evidencia requerida: captura de la pestaña Network (DevTools) mostrando `301 Moved Permanently` al intentar entrar por HTTP.
+#### Captura de conexión exitosa y en funcionamiento y pasando un fichero:
 
----
+En la captura podemos ver el directorio upload que es el del servidor sftp y además podemos ver como he subido un fichero con exito:
+![alt text](assets/image-4.png)
 
-# 2) Parte 2 — Evaluacion RA2 (a–j)
 
-A partir de aqui, TODO lo que hagas debe quedar documentado en DESPLIEGUE.md con:
-- explicacion breve
-- fragmento de configuracion si aplica
-- evidencias con comandos y capturas
+#### Captura de Filezilla mostrando la transferencia completada o los archivos ya presentes en el servidor remoto.
 
----
+En la captura podemos ver como he subido un fichero con exito:
+![alt text](assets/image-4.png)
 
-## a) Parametros de administracion mas importantes del servidor web
 
-### Tarea
-1. Localiza en el contenedor los fragmentos relevantes de /etc/nginx/nginx.conf donde aparezcan:
-- worker_processes
-- worker_connections
-- access_log
-- error_log
-- keepalive_timeout
-- include
-- gzip (aunque este comentado)
 
-2. Para cada directiva:
-- que controla
-- un ejemplo realista de configuracion incorrecta y su efecto
-- como lo comprobarías (comando + evidencia)
 
-3. Aplica un cambio seguro y medible:
-- ajusta keepalive_timeout (ej. 65 → 30) sin editar directamente el nginx.conf del contenedor
-- demuestra nginx -t OK + recarga OK
 
-### Evidencias obligatorias
-- evidencias/a-01-grep-nginxconf.png
-  Que demuestra: aparecen las directivas solicitadas en nginx.conf.
-  Comando antes de capturar:
-```bash
-docker compose exec web sh -c "grep -nE 'worker_processes|worker_connections|access_log|error_log|gzip|include|keepalive_timeout' /etc/nginx/nginx.conf"
-```
+### Fase 3: Infraestructura Docker
 
-- evidencias/a-02-nginx-t.png
-  Que demuestra: validacion correcta tras el cambio.
-  Comando antes de capturar:
-```bash
-docker compose exec web nginx -t
-```
-
-- evidencias/a-03-reload.png
-  Que demuestra: recarga correcta tras el cambio.
-  Comando antes de capturar:
-```bash
-docker compose exec web nginx -s reload
-```
-
----
+| Requisito | Evidencia requerida |
+|-----------|---------------------|
+| Contenedor de Nginx funcionando correctamente | Captura ejecutando `docker ps` mostrando el contenedor de Nginx en ejecución |
+| Contenedor SFTP funcionando correctamente | Captura ejecutando `docker ps` mostrando el contenedor SFTP en ejecución |
+| Volúmenes compartidos configurados entre contenedores | Captura del docker-compose.yml mostrando la configuración de volúmenes compartidos |
+| Acceso web a las páginas estáticas desplegadas | Capturas del navegador mostrando: (1) página principal accesible en http://localhost:8080, (2) página del reloj accesible en http://localhost:8080/reloj |
 
-## b) Ampliacion de funcionalidad mediante activacion y configuracion (elige 1 opcion) + modulo adicional investigado
-
-Elige una de las dos opciones: B1 (Gzip) o B2 (Cabeceras).
-Ademas, obligatorio: investigar y explicar un modulo real de Nginx consultando fuentes en Internet.
-
-### B1) Opcion Gzip (activacion y prueba)
-
-#### Tarea
-1. Crea gzip.conf con:
-- gzip on;
-- gzip_types (minimo: html, css, js, json, text/plain)
-- gzip_comp_level 5;
-- gzip_vary on;
-
-2. Monta gzip.conf en /etc/nginx/conf.d/gzip.conf mediante volumen.
-3. Valida y recarga Nginx.
-4. Demuestra con curl que una respuesta se entrega comprimida.
-
-#### Evidencias obligatorias (B1)
-- evidencias/b1-01-gzipconf.png
-  Que demuestra: contenido de gzip.conf (configuracion aplicada).
-
-- evidencias/b1-02-compose-volume-gzip.png
-  Que demuestra: montaje de gzip.conf en docker-compose.yml (volumen).
-
-- evidencias/b1-03-nginx-t.png
-  Que demuestra: config valida.
-  Comando:
-```bash
-docker compose exec web nginx -t
-```
-
-- evidencias/b1-04-curl-gzip.png
-  Que demuestra: Content-Encoding: gzip en respuesta.
-  Comando:
-```bash
-curl -I -H "Accept-Encoding: gzip" http://localhost:8080/
-curl -I -k -H "Accept-Encoding: gzip" https://localhost:8443/
-```
-
-Si no aparece compresion, crea un recurso grande y prueba contra el:
-```bash
-python3 - <<'PY'
-from pathlib import Path
-Path("webdata/largo.txt").write_text(("Linea de prueba para gzip.\n"*2000))
-print("Creado webdata/largo.txt")
-PY
-curl -I -H "Accept-Encoding: gzip" http://localhost:8080/largo.txt
-```
-
-### B2) Opcion Cabeceras de seguridad (activacion y prueba)
-
-#### Tarea
-1. Anade en el server que sirve contenido (preferiblemente el de HTTPS) las cabeceras:
-- X-Content-Type-Options: nosniff
-- X-Frame-Options: DENY
-- Content-Security-Policy basica
-
-2. Valida y recarga.
-3. Demuestra con curl que aparecen las cabeceras en HTTPS.
-   (En HTTP puede no aparecer si la respuesta es un 301 generado por otro server block.)
-
-#### Evidencias obligatorias (B2)
-- evidencias/b2-01-defaultconf-headers.png
-  Que demuestra: configuracion de cabeceras en default.conf. Y que significa cada una.
-
-- evidencias/b2-02-nginx-t.png
-  Que demuestra: config valida.
-  Comando:
-```bash
-docker compose exec web nginx -t
-```
-
-- evidencias/b2-03-curl-https-headers.png
-  Que demuestra: cabeceras presentes en respuesta HTTPS.
-  Comando:
-```bash
-curl -I -k https://localhost:8443/
-```
-
-### Obligatorio en b) — Modulo adicional investigado (con fuente)
-
-#### Tarea
-Busca en Internet un modulo real de Nginx y explica en DESPLIEGUE.md:
-- nombre del modulo
-- para que sirve
-- como se instala/carga “de forma general” (paquete / load_module / compilacion)
-- enlace(s) a la fuente consultada
-
-#### Evidencia obligatoria
-- Seccion en DESPLIEGUE.md llamada:
-  Modulo investigado: <NOMBRE>
-  con explicacion y enlace(s) a fuente.
-
----
-
-## c) Creacion y configuracion de sitios virtuales / multi-sitio por path + otros tipos
-
-### Tarea
-1. Evidencia del multi-sitio por path ya hecho:
-- web principal en /
-- web secundaria en /reloj
-
-2. Explica (6–10 lineas):
-- diferencia entre multi-sitio por path y por nombre (server_name)
-- indica al menos 2 tipos adicionales de multi-sitio que conozcas (por ejemplo: por nombre, por puerto, por IP, subdominios).
-
-3. Localiza y muestra tu configuracion activa dentro del contenedor:
-- fichero default.conf montado en /etc/nginx/conf.d/default.conf
-- senala directivas clave: root, location, try_files y como se soporta /reloj
-
-### Evidencias obligatorias
-- evidencias/c-01-root.png
-  Que demuestra: web principal en /.
-
-- evidencias/c-02-reloj.png
-  Que demuestra: web secundaria en /reloj.
-
-- evidencias/c-03-defaultconf-inside.png
-  Que demuestra: contenido de default.conf activo dentro del contenedor.
-  Comando:
-```bash
-docker compose exec web sh -c "sed -n '1,220p' /etc/nginx/conf.d/default.conf"
-```
-
----
-
-## d) Autenticacion y control de acceso
-
-### Tarea: proteger /admin
-1. Crea webdata/admin/index.html con contenido simple.
-2. Configura auth_basic para /admin/ con .htpasswd.
-3. Prueba:
-- sin credenciales → 401
-- con credenciales → 200
-
-### Evidencias obligatorias
-- evidencias/d-01-admin-html.png
-  Que demuestra: existe el contenido webdata/admin/index.html (captura del fichero o del listado).
-
-- evidencias/d-02-defaultconf-auth.png
-  Que demuestra: location /admin/ con auth_basic configurado.
-
-- evidencias/d-03-curl-401.png
-  Que demuestra: acceso sin credenciales devuelve 401.
-  Comando:
-```bash
-curl -I -k https://localhost:8443/admin/
-```
-
-- evidencias/d-04-curl-200.png
-  Que demuestra: acceso con credenciales devuelve 200.
-  Comando:
-```bash
-curl -I -k -u admin:Admin1234\! https://localhost:8443/admin/
-```
-
----
-
-## e) Obtencion e instalacion de certificados digitales
-
-### Tarea
-1. Explica en DESPLIEGUE.md:
-- que es .crt y .key
-- por que -nodes se usa en laboratorio
-
-2. Evidencia de:
-- ficheros generados
-- montaje en compose
-- uso en default.conf
-
-### Evidencias obligatorias
-- evidencias/e-01-ls-certs.png
-  Que demuestra: existen los certificados en el host.
-  Comando:
-```bash
-ls -l nginx-selfsigned.crt nginx-selfsigned.key
-```
-
-- evidencias/e-02-compose-certs.png
-  Que demuestra: montaje de cert y key en docker-compose.yml.
-
-- evidencias/e-03-defaultconf-ssl.png
-  Que demuestra: ssl_certificate y ssl_certificate_key con rutas correctas.
-
----
-
-## f) Asegurar comunicaciones cliente-servidor
-
-### Tarea
-1. Evidencia de HTTPS operativo.
-2. Evidencia de redireccion HTTP→HTTPS con 301.
-3. Explica por que se usan dos server blocks (80 redirige, 443 sirve).
-
-### Evidencias obligatorias
-- evidencias/f-01-https.png
-  Que demuestra: navegacion por https://localhost:8443.
-
-- evidencias/f-02-301-network.png
-  Que demuestra: 301 en DevTools → Network al entrar por HTTP.
-
----
-
-## g) Documentacion (configuracion, administracion segura y recomendaciones)
-
-### Tarea
-Completa DESPLIEGUE.md con:
-- arquitectura (servicios, puertos, volumenes)
-- configuracion Nginx (ubicacion de default.conf, server blocks, root, /reloj)
-- seguridad (certificados, HTTPS, redirect, opcion b elegida)
-- autenticacion /admin (si procede)
-- logs y analisis (criterio j)
-- evidencias Parte 1 + Parte 2 con enlaces a capturas
-
-### Evidencia obligatoria
-- DESPLIEGUE.md enlazado al inicio de este README (ya esta enlazado arriba).
-
----
-
-## h) Ajustes necesarios para implantacion de aplicaciones en Nginx
-
-### Tarea
-1. Explica que implica desplegar una segunda app en /reloj (rutas relativas/absolutas).
-2. Describe un problema tipico de permisos al subir por SFTP y tu solucion.
-3. Evidencia de / y /reloj.
-
-### Evidencias obligatorias
-- evidencias/h-01-root.png
-  Que demuestra: / funciona.
-
-- evidencias/h-02-reloj.png
-  Que demuestra: /reloj funciona.
-
----
-
-## i) Virtualizacion en despliegue (contenedores)
-
-### Tarea
-1. Explica diferencia operativa entre:
-- instalacion nativa en SO
-- contenedor efimero + configuracion por volumenes
-
-2. Evidencia de contenedores en marcha.
-
-### Evidencias obligatorias
-- evidencias/i-01-compose-ps.png
-  Que demuestra: servicios activos con puertos y estado Up.
-  Comando:
-```bash
-docker compose ps
-```
-
----
-
-## j) Logs: monitorizacion, consolidacion y analisis en tiempo real
-
-### Tarea
-1. Genera trafico y errores 404:
-```bash
-for i in $(seq 1 20); do curl -s -o /dev/null http://localhost:8080/; done
-for i in $(seq 1 10); do curl -s -o /dev/null http://localhost:8080/no-existe-$i; done
-```
-
-2. Monitoriza en tiempo real:
-```bash
-docker compose logs -f web
-```
-
-3. Extrae metricas basicas (top URLs, codigos, 404) desde el contenedor:
-```bash
-docker compose exec web sh -c "awk '{print \$7}' /var/log/nginx/access.log | sort | uniq -c | sort -nr | head"
-docker compose exec web sh -c "awk '{print \$9}' /var/log/nginx/access.log | sort | uniq -c | sort -nr | head"
-docker compose exec web sh -c "awk '\$9==404 {print \$7}' /var/log/nginx/access.log | sort | uniq -c | sort -nr | head"
-```
-
-### Evidencias obligatorias
-- evidencias/j-01-logs-follow.png
-  Que demuestra: monitorizacion en tiempo real de logs.
-  Comando antes de capturar:
-```bash
-docker compose logs -f web
-```
-
-- evidencias/j-02-metricas.png
-  Que demuestra: extraccion de metricas (URLs / codigos / 404).
-  Comandos antes de capturar: (captura tras ejecutar los 3 comandos anteriores)
-
----
-
-# 3) Checklist final (debe aparecer en DESPLIEGUE.md)
-
-En DESPLIEGUE.md incluye un checklist con:
-- Parte 1: items 1 a 11 ✅/⬜
-- Parte 2: RA2 a–j ✅/⬜
-  Incluye enlaces a las evidencias correspondientes.
-
-
-# 4) Entrega
-
-**OBLIGATORIO:** la estructura del repo debe ser similar a la recomendada en 0.2, por tanto tienes que tener todos los archivos que has utilizado (docker-compose.yml, default.conf, certificados, webdata/, evidencias/, DESPLIEGUE.md, README.md).
-
-- Sube todo el repo a tu GitHub.
-- Asegurate de que DESPLIEGUE.md incluye todo lo solicitado.
-- Comprueba que las evidencias estan en evidencias/ y enlazadas en DESPLIEGUE.md.
-- Comparte el enlace del repo a tu instructor o en la plataforma correspondiente
+
+#### Captura del comando docker compose ps donde se vean los dos servicios con estado Up y los puertos 0.0.0.0:8080->80/tcp y 0.0.0.0:2222->22/tcp.
+
+Captura mostrando el comando ejecutando, y como podemos ver en la columna ports podemos ver la redirección.
+
+![alt text](assets/image-16.png)
+
+
+#### Evidencia Cruzada: Una captura con Filezilla abierto a un lado (mostrando archivos en /upload) y el navegador al otro (mostrando localhost:8080), demostrando que son los mismos archivos.
+
+
+No puedo mostrar la captura en pantallas divididas porque en macOS no me puedo descargar filezilla y lo que he hecho es usar otro ordenador para conetarme a mi equipo, pero puedo mostrar como la carpeta sincronizada si contiene el mismo contenido, y además mostrando como se ven los ficheros en filezilla:
+
+
+
+
+Web y carpeta sincronizadas:
+![alt text](assets/image-19.png)
+
+
+Filezilla dentro de la carpeta upload (la ip es distinta porque me cambie de red):
+![alt text](assets/image-18.png)
+
+
+#### Captura del navegador en la ruta http://localhost:8080/reloj mostrando el reloj funcionando.
+
+Captura mostrando la página del reloj en funcionamiento:
+
+![alt text](assets/2026-01-14_12-14-13.png)
+
+
+### Fase 4: Seguridad HTTPS
+
+| Requisito | Evidencia requerida |
+|-----------|---------------------|
+| Certificados SSL generados correctamente | Captura del comando de generación de certificados y los archivos .crt y .key creados |
+| Configuración de Nginx para HTTPS | Captura del archivo default.conf mostrando la configuración SSL de Nginx |
+| Acceso HTTPS funcional con redirección automática | Capturas mostrando: (1) acceso por HTTP siendo redirigido a HTTPS, (2) página cargando correctamente por HTTPS con el icono de candado (aunque muestre advertencia por ser autofirmado) |
+
+
+#### Captura del navegador accediendo por https://... mostrando el candado (o la alerta de certificado autofirmado) y el puerto configurado (ej. 8443).
+
+Captura del navegador mostrando que esto es un certificado autofirmado al entrar a la web:
+
+![alt text](assets/image-20.png)
+
+
+#### Captura de la pestaña "Red" (Network) de las herramientas de desarrollador (F12) mostrando un código de estado 301 Moved Permanently al intentar entrar por HTTP.
+
+Captura del código de estado 301 al intentar entrar por http:
+
+![alt text](assets/image-21.png)
