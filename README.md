@@ -47,7 +47,7 @@ Explicación línea a línea:
 - **command**: Es una forma que tienen algunas imagenes de importarle parametros a una imagen para que cuando la dokenizemos pues que tenga los parametros, al menos este es el caso de la imagen de **atmoz/sftp** ya que lo vi en la descripción de la imagen de docker hub.
 - **restart**: Es una forma de dictar directivas al contenedor para que actue de cierta forma ante un reinicio imprevisto. Este parámetro lo he acompñado de unless-stop ya que mi objetivo era que se reiniciara tantas veces como sea necesaria a no ser que yo pare al contenedor.
 
-https://github.com/Alejandro-Bravo2/2526-desplieguewebEstatica-AlejandroBravo/blob/a8d0a7d6fcf2285f3896b440cabc0c736b50b51c/docker-compose.yml#L1-L21
+https://github.com/IES-Rafael-Alberti/2526-u2-4-2-serweb-Alejandro-Bravo2/blob/b873466b9f11839743db10988e35fa6f0dae1bce/docker-compose.yml#L1-L23
 
 ## Proceso de despliegue
 
